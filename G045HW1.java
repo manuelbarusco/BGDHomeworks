@@ -5,14 +5,22 @@ import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.HashSet;
+import java.util.*;
 
 public class G045HW1 {
 
+    //Comparator class for sorting productPopularity1 and 2 JavaPairRDDs
+    public static class ProductPopularityComparator implements Comparator<Tuple2<String,Long>>{
+
+        @Override
+        public int compare(Tuple2<String, Long> o1, Tuple2<String, Long> o2) {
+            return o1._1().compareTo(o2._1());
+        }
+    }
+
     public static void main(String[] args) throws IOException {
 
+        //simple check of the command line arguments
         if (args.length != 4) {
             throw new IllegalArgumentException("USAGE: K H S dataset_path");
         }
@@ -44,9 +52,10 @@ public class G045HW1 {
         numRows = rawData.count();      // number of elements of the rawData RDD
         System.out.println("Number of rows = " + numRows);
 
-        JavaPairRDD<String, Integer> productCustumer;
+        JavaPairRDD<String, Integer> productCustomer;
+        JavaPairRDD<String, Long> productPopularity1;
 
-        productCustumer = rawData
+        productCustomer = rawData
                 .filter(
                         (transaction) -> {
                             String[] tokens = transaction.split(",");
@@ -72,17 +81,53 @@ public class G045HW1 {
                 .reduceByKey((x, y) -> x+y)
                 .mapToPair(
                         (t) ->{
-                          Tuple2<String, Integer> pair = new Tuple2<String, Integer>(t._1()._1(), t._1()._2());
-                          return pair;
+                            Tuple2<String, Integer> pair = new Tuple2<String, Integer>(t._1()._1(), t._1()._2());
+                            return pair;
                         }
                 );
-        numProductCustumer = productCustumer.count();
+        numProductCustumer = productCustomer.count();
         System.out.println("Product-Customer Pairs =" + numProductCustumer);
 
         // SOLO PER TEST DA TOGLIERE!!
-        for(Tuple2<String, Integer> line:productCustumer.collect()){
+        for(Tuple2<String, Integer> line:productCustomer.collect()){
             System.out.println("* "+line);
         }
+
+        productPopularity1 = productCustomer
+                .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
+                    return pc;
+                })
+                .mapPartitionsToPair((productCustomerPair) -> { // <-- REDUCE PHASE (R1)
+
+                    //execute counts in each partition
+                    HashMap<String, Long> counts = new HashMap<>();
+                    while(productCustomerPair.hasNext()) {
+                        Tuple2<String, Integer> tuple= productCustomerPair.next();
+                        counts.put(tuple._1(), 1L+ counts.getOrDefault(tuple._1(), 0L));
+                    }
+
+                    //create the output
+                    ArrayList<Tuple2<String, Long>> pairs = new ArrayList<>();
+                    for (Map.Entry<String, Long> e : counts.entrySet()) {
+                        pairs.add(new Tuple2<>(e.getKey(), e.getValue()));
+                    }
+
+                    return pairs.iterator();
+                })
+                .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
+                    return pc;
+                })
+                .reduceByKey((x,y) -> x+y);
+
+        //task6: print all the pairs in productPopularity1 in lexicographic order
+        System.out.println("productPopularity1:");
+        ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
+        productPopularity1List.sort(new ProductPopularityComparator());
+        for(Tuple2<String, Long> line:productPopularity1List){
+            System.out.print("Product: "+line._1()+" Popularity: "+line._2()+" ");
+        }
+
+
 
     }
 }
