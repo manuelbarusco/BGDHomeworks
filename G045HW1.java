@@ -34,7 +34,7 @@ public class G045HW1 {
         sc.setLogLevel("WARN");     //Reduce the warning
 
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-        // INPUT READING
+        // COMMAND LINE INPUT READING
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
         int K = Integer.parseInt(args[0]);      // Read number of partitions
@@ -52,12 +52,15 @@ public class G045HW1 {
         numRows = rawData.count();      // number of elements of the rawData RDD
         System.out.println("Number of rows = " + numRows);
 
+        //definition of all the JavaPairRDD that we will use
+
         JavaPairRDD<String, Integer> productCustomer;
         JavaPairRDD<String, Long> productPopularity1;
         JavaPairRDD<String, Long> productPopularity2;
+        JavaPairRDD<Long, String> rate;
 
         productCustomer = rawData
-                .filter(
+                .filter( //filtering transactions with country and quantity parameters
                         (transaction) -> {
                             String[] tokens = transaction.split(",");
                             if (S.equalsIgnoreCase("all")){
@@ -89,11 +92,6 @@ public class G045HW1 {
         numProductCustumer = productCustomer.count();
         System.out.println("Product-Customer Pairs =" + numProductCustumer);
 
-        // SOLO PER TEST DA TOGLIERE!!
-        for(Tuple2<String, Integer> line:productCustomer.collect()){
-            System.out.println("* "+line);
-        }
-
         productPopularity1 = productCustomer
                 .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
                     return pc;
@@ -115,7 +113,7 @@ public class G045HW1 {
 
                     return pairs.iterator();
                 })
-                .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
+                .mapPartitionsToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
                     return pc;
                 })
                 .reduceByKey((x,y) -> x+y);
@@ -164,5 +162,16 @@ public class G045HW1 {
             System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
         }//for
 
+        rate = productPopularity1.mapToPair((pp1) -> {
+            /*Tuple2<Long, String> tuple = new Tuple2<Long, String>(pp1._2(),pp1._1());
+            return tuple;*/
+            return pp1.swap();
+        }).repartition(1).sortByKey(false);
+
+        System.out.println("Sort by popularity:");
+        ArrayList<Tuple2<Long, String>> rateList = new ArrayList<>(rate.take(H));
+        for(Tuple2<Long, String> ppr:rateList){
+            System.out.println("* Product: "+ppr._2()+" -> Popularity: "+ppr._1()+" ");
+        }//for
     }
 }
