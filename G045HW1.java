@@ -54,6 +54,7 @@ public class G045HW1 {
 
         JavaPairRDD<String, Integer> productCustomer;
         JavaPairRDD<String, Long> productPopularity1;
+        JavaPairRDD<String, Long> productPopularity2;
 
         productCustomer = rawData
                 .filter(
@@ -124,10 +125,44 @@ public class G045HW1 {
         ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
         productPopularity1List.sort(new ProductPopularityComparator());
         for(Tuple2<String, Long> line:productPopularity1List){
-            System.out.print("Product: "+line._1()+" Popularity: "+line._2()+" ");
+            System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
         }
 
+        Random randomGenerator = new Random();
 
+        productPopularity2 = productCustomer
+                .mapToPair( (prodCust) -> {
+                    return prodCust;
+                })
+                .groupBy( (prodCustPair) -> randomGenerator.nextInt(K))
+                .flatMapToPair((element) -> {
+
+                    //counts for each partitions
+                    HashMap<String, Long> counts = new HashMap<>();
+                    for(Tuple2<String, Integer> c : element._2()){
+                        counts.put(c._1(), 1L+ counts.getOrDefault(c._1(), 0L));
+                    }//for
+
+                    //create output pairs
+                    ArrayList<Tuple2<String, Long>> pairs = new ArrayList<>();
+                    for(Map.Entry<String,Long> e : counts.entrySet()){
+                        pairs.add(new Tuple2<>(e.getKey(), e.getValue()));
+                    }//for
+
+                    return pairs.iterator();
+                })
+                .mapToPair( pair -> {
+                    return pair;
+                })
+                .reduceByKey((x,y) -> x+y);
+
+        //task6: print all the pairs in productPopularity2 in lexicographic order
+        System.out.println("\nproductPopularity2:");
+        ArrayList<Tuple2<String, Long>> productPopularity2List = new ArrayList<>(productPopularity2.collect());
+        productPopularity2List.sort(new ProductPopularityComparator());
+        for(Tuple2<String, Long> line:productPopularity2List){
+            System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
+        }//for
 
     }
 }
