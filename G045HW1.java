@@ -118,14 +118,6 @@ public class G045HW1 {
                 })
                 .reduceByKey((x,y) -> x+y);
 
-        //task6: print all the pairs in productPopularity1 in lexicographic order
-        System.out.println("productPopularity1:");
-        ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
-        productPopularity1List.sort(new ProductPopularityComparator());
-        for(Tuple2<String, Long> line:productPopularity1List){
-            System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
-        }
-
         Random randomGenerator = new Random();
 
         productPopularity2 = productCustomer
@@ -154,24 +146,36 @@ public class G045HW1 {
                 })
                 .reduceByKey((x,y) -> x+y);
 
-        //task6: print all the pairs in productPopularity2 in lexicographic order
-        System.out.println("\nproductPopularity2:");
-        ArrayList<Tuple2<String, Long>> productPopularity2List = new ArrayList<>(productPopularity2.collect());
-        productPopularity2List.sort(new ProductPopularityComparator());
-        for(Tuple2<String, Long> line:productPopularity2List){
-            System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
-        }//for
+        if(H==0) {
+            //task6: print all the pairs in productPopularity1 in lexicographic order
+            System.out.println("productPopularity1:");
+            ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
+            productPopularity1List.sort(new ProductPopularityComparator());
+            for (Tuple2<String, Long> line : productPopularity1List) {
+                System.out.println("* Product: " + line._1() + " -> Popularity: " + line._2() + " ");
+            }
 
-        rate = productPopularity1.mapToPair((pp1) -> {
-            /*Tuple2<Long, String> tuple = new Tuple2<Long, String>(pp1._2(),pp1._1());
-            return tuple;*/
-            return pp1.swap();
-        }).repartition(1).sortByKey(false);
+            //task6: print all the pairs in productPopularity2 in lexicographic order
+            System.out.println("\nproductPopularity2:");
+            ArrayList<Tuple2<String, Long>> productPopularity2List = new ArrayList<>(productPopularity2.collect());
+            productPopularity2List.sort(new ProductPopularityComparator());
+            for (Tuple2<String, Long> line : productPopularity2List) {
+                System.out.println("* Product: " + line._1() + " -> Popularity: " + line._2() + " ");
+            }//for
+        }
 
-        System.out.println("Sort by popularity:");
-        ArrayList<Tuple2<Long, String>> rateList = new ArrayList<>(rate.take(H));
-        for(Tuple2<Long, String> ppr:rateList){
-            System.out.println("* Product: "+ppr._2()+" -> Popularity: "+ppr._1()+" ");
-        }//for
+        if(H>0) {
+            rate = productPopularity1.mapToPair((pp1) -> {
+                /*Tuple2<Long, String> tuple = new Tuple2<Long, String>(pp1._2(),pp1._1());
+                return tuple;*/
+                return pp1.swap();
+            }).repartition(1).sortByKey(false);
+
+            System.out.println("Top "+H+ " Products and their Popularities");
+            ArrayList<Tuple2<Long, String>> rateList = new ArrayList<>(rate.take(H));
+            for (Tuple2<Long, String> ppr : rateList) {
+                System.out.println("* Product: " + ppr._2() + " -> Popularity: " + ppr._1() + " ");
+            }//for
+        }
     }
 }
