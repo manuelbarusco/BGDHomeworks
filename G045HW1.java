@@ -15,15 +15,15 @@ public class G045HW1 {
         @Override
         public int compare(Tuple2<String, Long> o1, Tuple2<String, Long> o2) {
             return o1._1().compareTo(o2._1());
-        }
-    }
+        }//compare
+    }//ProductPopularityComparator
 
     public static void main(String[] args) throws IOException {
 
         //simple check of the command line arguments
         if (args.length != 4) {
             throw new IllegalArgumentException("USAGE: K H S dataset_path");
-        }
+        }//if
 
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
         // SPARK SETUP
@@ -34,7 +34,7 @@ public class G045HW1 {
         sc.setLogLevel("WARN");     //Reduce the warning
 
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-        // INPUT READING
+        // COMMAND LINE INPUT READING
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
         int K = Integer.parseInt(args[0]);      // Read number of partitions
@@ -49,24 +49,27 @@ public class G045HW1 {
         // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
         long numRows, numProductCustumer;
-        numRows = rawData.count();      // number of elements of the rawData RDD
+        Random randomGenerator = new Random();
+        numRows = rawData.count(); // number of elements of the rawData RDD
         System.out.println("Number of rows = " + numRows);
 
+        //definition of all the JavaPairRDD that we will use
         JavaPairRDD<String, Integer> productCustomer;
         JavaPairRDD<String, Long> productPopularity1;
         JavaPairRDD<String, Long> productPopularity2;
+        JavaPairRDD<Long, String> rate;
 
         productCustomer = rawData
-                .filter(
+                .filter( //filtering transactions with country and quantity parameters
                         (transaction) -> {
                             String[] tokens = transaction.split(",");
                             if (S.equalsIgnoreCase("all")){
-                                if (Integer.parseInt(tokens[3])>0)      //Checking quantity > 0
+                                if (Integer.parseInt(tokens[3])>0) //Checking quantity > 0
                                     return true;
                                 else
                                     return false;
-                            }
-                            if (Integer.parseInt(tokens[3])>0 && tokens[7].equalsIgnoreCase(S))     //Checking quantity > 0 and Country = S
+                            }//if
+                            if (Integer.parseInt(tokens[3])>0 && tokens[7].equalsIgnoreCase(S)) //Checking quantity > 0 and Country = S
                                 return true;
                             else
                                 return false;
@@ -86,12 +89,12 @@ public class G045HW1 {
                             return pair;
                         }
                 );
-
         numProductCustumer = productCustomer.count();
-        System.out.println("Product-Customer Pairs =" + numProductCustumer);
+        System.out.println("Product-Customer Pairs = " + numProductCustumer);
 
+        //productPopularity1
         productPopularity1 = productCustomer
-                .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
+                .mapToPair((pc) -> {    // <-- MAP-PHASE (R1): EMPTY
                     return pc;
                 })
                 .mapPartitionsToPair((productCustomerPair) -> { // <-- REDUCE PHASE (R1)
@@ -101,64 +104,76 @@ public class G045HW1 {
                     while(productCustomerPair.hasNext()) {
                         Tuple2<String, Integer> tuple= productCustomerPair.next();
                         counts.put(tuple._1(), 1L+ counts.getOrDefault(tuple._1(), 0L));
-                    }
+                    }//while
 
                     //create the output
                     ArrayList<Tuple2<String, Long>> pairs = new ArrayList<>();
                     for (Map.Entry<String, Long> e : counts.entrySet()) {
                         pairs.add(new Tuple2<>(e.getKey(), e.getValue()));
-                    }
+                    }//for
 
                     return pairs.iterator();
                 })
-                .mapToPair((pc) -> {    // <-- MAP PHASE (R1) EMPTY
+                .mapPartitionsToPair((pc) -> {    // <-- MAP-PHASE (R2): EMPTY
                     return pc;
                 })
-                .reduceByKey((x,y) -> x+y);
+                .reduceByKey((x,y) -> x+y); // <-- REDUCE PHASE (R2)
 
-        //task6: print all the pairs in productPopularity1 in lexicographic order
-        System.out.println("\nproductPopularity1:");
-        ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
-        productPopularity1List.sort(new ProductPopularityComparator());
-        for(Tuple2<String, Long> line:productPopularity1List){
-            System.out.println("Product: "+line._1()+" Popularity: "+line._2()+" ");
-        }
-
-        Random randomGenerator = new Random();
-
+        //productPopularity2
         productPopularity2 = productCustomer
-            .mapToPair( (prodCust) -> {
-                return prodCust;
-            })
-            .groupBy( (prodCustPair) -> randomGenerator.nextInt(K))
-            .flatMapToPair((element) -> {
+                .mapToPair( (prodCust) -> { // <-- MAP-PHASE (R1): EMPTY
+                    return prodCust;
+                })
+                .groupBy( (prodCustPair) -> randomGenerator.nextInt(K)) // <-- KEY ASSIGNMENT + SHUFFLE + GROUPING
+                .flatMapToPair((element) -> { // <-- REDUCE PHASE (R1)
 
-                //counts for each partitions
-                HashMap<String, Long> counts = new HashMap<>();
-                for(Tuple2<String, Integer> c : element._2()){
-                    counts.put(c._1(), 1L+ counts.getOrDefault(c._1(), 0L));
-                }//for
+                    //execute counts in each partition
+                    HashMap<String, Long> counts = new HashMap<>();
+                    for(Tuple2<String, Integer> c : element._2()){
+                        counts.put(c._1(), 1L+ counts.getOrDefault(c._1(), 0L));
+                    }//for
 
-                //create output pairs
-                ArrayList<Tuple2<String, Long>> pairs = new ArrayList<>();
-                for(Map.Entry<String,Long> e : counts.entrySet()){
-                    pairs.add(new Tuple2<>(e.getKey(), e.getValue()));
-                }//for
+                    //create output pairs
+                    ArrayList<Tuple2<String, Long>> pairs = new ArrayList<>();
+                    for(Map.Entry<String,Long> e : counts.entrySet()){
+                        pairs.add(new Tuple2<>(e.getKey(), e.getValue()));
+                    }//for
 
-                return pairs.iterator();
-          })
-          .mapToPair( pair -> {
-              return pair;
-          })
-          .reduceByKey((x,y) -> x+y);
+                    return pairs.iterator();
+                })
+                .mapToPair( pair -> { // <-- MAP-PHASE (R2): EMPTY
+                    return pair;
+                })
+                .reduceByKey((x,y) -> x+y); // <-- REDUCE PHASE (R2)
 
-        //task6: print all the pairs in productPopularity2 in lexicographic order
-        System.out.println("\nproductPopularity2:");
-        ArrayList<Tuple2<String, Long>> productPopularity2List = new ArrayList<>(productPopularity2.collect());
-        productPopularity2List.sort(new ProductPopularityComparator());
-        for(Tuple2<String, Long> line:productPopularity2List){
-            System.out.println("* Product: "+line._1()+" -> Popularity: "+line._2()+" ");
-        }//for
+        if(H==0) {
+            //task6: print all the pairs in productPopularity1 in lexicographic order
+            System.out.println("productPopularity1:");
+            ArrayList<Tuple2<String, Long>> productPopularity1List = new ArrayList<>(productPopularity1.collect());
+            productPopularity1List.sort(new ProductPopularityComparator());
+            for (Tuple2<String, Long> line : productPopularity1List) {
+                System.out.print("Product: " + line._1() + " Popularity: " + line._2() + "; ");
+            }//for
 
+            //task6: print all the pairs in productPopularity2 in lexicographic order
+            System.out.println("\nproductPopularity2:");
+            ArrayList<Tuple2<String, Long>> productPopularity2List = new ArrayList<>(productPopularity2.collect());
+            productPopularity2List.sort(new ProductPopularityComparator());
+            for (Tuple2<String, Long> line : productPopularity2List) {
+                System.out.print("Product: " + line._1() + " Popularity: " + line._2() + "; ");
+            }//for
+        }//if
+
+        if(H>0) {
+            rate = productPopularity1.mapToPair((pp1) -> {
+                return pp1.swap();
+            }).sortByKey(false);
+
+            System.out.println("Top "+H+ " Products and their Popularities");
+            ArrayList<Tuple2<Long, String>> rateList = new ArrayList<>(rate.take(H));
+            for (Tuple2<Long, String> ppr : rateList) {
+                System.out.print("Product: " + ppr._2() + " Popularity: " + ppr._1() + "; ");
+            }//for
+        }//if
     }//main
 }//G045HW1
