@@ -50,6 +50,8 @@ public class G045HW1 {
         long numRows, numProductCustumer;
         Random randomGenerator = new Random();
 
+        //*************** TASK 1 ***************
+
         numRows = rawData.count();      // number of elements of the rawData RDD
         System.out.println("Number of rows = " + numRows);
 
@@ -59,34 +61,39 @@ public class G045HW1 {
         JavaPairRDD<String, Long> productPopularity2;
         JavaPairRDD<Long, String> rate;
 
+
+        //*************** TASK 2 ***************
         productCustomer = rawData
-                .filter( //filtering transactions with country and quantity parameters
-                        (transaction) -> {
-                            String[] tokens = transaction.split(",");
-                            if (S.equalsIgnoreCase("all")){
-                                //Checking quantity > 0
-                                return Integer.parseInt(tokens[3]) > 0;
+                    .filter( //filtering transactions with country and quantity parameters
+                            (transaction) -> {
+                                String[] tokens = transaction.split(",");
+                                if (S.equalsIgnoreCase("all")){
+                                    //Checking quantity > 0
+                                    return Integer.parseInt(tokens[3]) > 0;
+                                }
+                                //Checking quantity > 0 and Country = S
+                                return Integer.parseInt(tokens[3]) > 0 && tokens[7].equalsIgnoreCase(S);
                             }
-                            //Checking quantity > 0 and Country = S
-                            return Integer.parseInt(tokens[3]) > 0 && tokens[7].equalsIgnoreCase(S);
-                        }
-                )
-                .mapToPair(
-                        (transaction) -> {
-                            String[] tokens = transaction.split(",");
-                            Tuple2<Tuple2<String, Integer>, Integer> tuple = new Tuple2<Tuple2<String, Integer>, Integer>(new Tuple2<String, Integer>(tokens[1],Integer.parseInt(tokens[6])), 1);
-                            return tuple;
-                        }
-                )
-                .reduceByKey((x, y) -> x+y)
-                .mapToPair(
-                        (t) ->{
-                            Tuple2<String, Integer> pair = new Tuple2<String, Integer>(t._1()._1(), t._1()._2());
-                            return pair;
-                        }
-                );
-        numProductCustumer = productCustomer.count();
+                    )
+                    .mapToPair( //Extracting ProductID and CustomerID from each transaction
+                            (transaction) -> {
+                                String[] tokens = transaction.split(",");
+                                Tuple2<Tuple2<String, Integer>, Integer> tuple = new Tuple2<>(new Tuple2<String, Integer>(tokens[1],Integer.parseInt(tokens[6])), 1);
+                                return tuple;
+                            }
+                    )
+                    .groupByKey()
+                    .mapToPair( //Removing the integer value 1
+                            (t) ->{
+                                Tuple2<String, Integer> pair = new Tuple2<>(t._1()._1(), t._1()._2());
+                                return pair;
+                            }
+                    );
+        numProductCustumer = productCustomer.count();   // number of elements of productCustomer
         System.out.println("Product-Customer Pairs = " + numProductCustumer);
+
+
+        //*************** TASK 3 ***************
 
         productPopularity1 = productCustomer //MAP PHASE (R1) EMPTY
                 .mapPartitionsToPair((productCustomerPair) -> { //REDUCE PHASE (R1)
@@ -114,6 +121,9 @@ public class G045HW1 {
                     return sum;
                 });
 
+
+        //*************** TASK 4 ***************
+
         productPopularity2 = productCustomer
                 .groupBy( (prodCustPair) -> randomGenerator.nextInt(K))
                 .flatMapToPair((element) -> {
@@ -134,6 +144,9 @@ public class G045HW1 {
                 })
                 .reduceByKey((x,y) -> x+y);
 
+
+        //*************** TASK 6 ***************
+
         if(H==0) {
             //task6: print all the pairs in productPopularity1 in lexicographic order
             System.out.println("productPopularity1:");
@@ -151,6 +164,8 @@ public class G045HW1 {
                 System.out.print("Product: " + line._1() + " Popularity: " + line._2() + "; ");
             }//for
         }
+
+        //*************** TASK 5 ***************
 
         if(H>0) {
             //task5: save in a list and prints the ProductID and Popularity of the H products with highest Popularity
