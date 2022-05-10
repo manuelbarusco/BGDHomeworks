@@ -183,6 +183,35 @@ public class G045HW2 {
         }
     }
 
+    /** ComputeObjective(P,S,z)
+     * @param P set of input points
+     * @param S set of centers returned by SeqWeightedOutliers
+     * @param z number of outliers
+     * @return the largest distance between points in P and centers in S, discarding the last $z
+     */
+    public static double ComputeObjective(ArrayList<Vector> P, ArrayList<Vector> S, int z){
+        Double[] local_distances = new Double[(P.size() * S.size()) - S.size()];
+        double distance;
+        int index = 0;
+
+        for(Vector p_i : P) {
+            for(Vector center_i : S) {
+                if(!p_i.equals(center_i)){
+                    distance = Math.sqrt(Vectors.sqdist(p_i, center_i));
+                    //System.out.println("Distance (" + p_i + "," + center_i + ") = " + distance);
+                    local_distances[index] = distance;
+                    index++;
+                }//if
+            }//foreach
+        }//foreach
+
+        // sort all distances compute before
+        java.util.Arrays.sort(local_distances);
+        //System.out.println("local_distances" + java.util.Arrays.toString(local_distances));
+
+        return local_distances[(local_distances.length-1)-z];
+    }//ComputeObjective
+
     public static void main(String[] args) throws IllegalArgumentException, IOException {
 
         //simple check of the command line arguments
