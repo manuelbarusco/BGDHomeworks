@@ -63,7 +63,7 @@ public class G045HW2 {
         for (int i=0; i<size; i++) {
             for (int j = 0; j < size; j++) {
                 if (i == j)
-                    distances[i][j] = 0.0f;     //zero in float
+                    distances[i][j] = 0.0;
                 else {
                     distances[i][j] = Math.sqrt(Vectors.sqdist(inputPoints.get(i), inputPoints.get(j)));
                     distances[j][i] = distances[i][j];      //copy the value in the symmetric part of the matrix
@@ -150,7 +150,7 @@ public class G045HW2 {
                 Z.add(i);
             }//for
 
-            HashSet<Vector> S = new HashSet<>();  //S: set of centers, for now it's empty
+            ArrayList<Vector> S = new ArrayList<>();  //S: set of centers, for now it's empty
 
             while (S.size() < k && Wz > 0) {
                 long max = 0;
@@ -177,7 +177,7 @@ public class G045HW2 {
 
             if (Wz <= z) {
                 finalGuess = r;
-                return new ArrayList<>(S);
+                return S;
             }else if(S.size()==k){
                 r *= 2;
                 nGuesses++;
