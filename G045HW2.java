@@ -1,15 +1,9 @@
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-
-import org.apache.hadoop.util.hash.Hash;
-import org.apache.hadoop.yarn.webapp.hamlet.Hamlet;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
-
-import javax.sound.midi.SysexMessage;
 import java.io.IOException;
-import java.util.stream.Collectors;
 
 /*
 GROUP: 045
@@ -37,9 +31,9 @@ public class G045HW2 {
         double[] data = new double[tokens.length];
         for (int i=0; i<tokens.length; i++) {
             data[i] = Double.parseDouble(tokens[i]);
-        }
+        }//for
         return Vectors.dense(data);
-    }
+    }//strToVector
 
     /**
      * @param filename file name
@@ -49,15 +43,15 @@ public class G045HW2 {
     public static ArrayList<Vector> readVectorsSeq(String filename) throws IOException {
         if (Files.isDirectory(Paths.get(filename))) {
             throw new IllegalArgumentException("readVectorsSeq is meant to read a single file.");
-        }
+        }//if
         ArrayList<Vector> result = new ArrayList<>();
         Files.lines(Paths.get(filename))
                 .map(str -> strToVector(str))
                 .forEach(e -> result.add(e));
         return result;
-    }
+    }//readVectorsSeq
 
-    //******** Distances Matrix calculation ********
+    //******** Helper methods ********
 
     /**
      * @param inputPoints vector of input points
@@ -73,10 +67,10 @@ public class G045HW2 {
                 else {
                     distances[i][j] = Math.sqrt(Vectors.sqdist(inputPoints.get(i), inputPoints.get(j)));
                     distances[j][i] = distances[i][j];      //copy the value in the symmetric part of the matrix
-                }
-            }
-        }
-    }
+                }//if-else
+            }//for
+        }//for
+    }//calculateDistancesMatrix
 
     /**
      * function for r parameter initialization
@@ -89,7 +83,7 @@ public class G045HW2 {
             for(int j=0;j<distances[0].length && j<k+z+1; j++)
                 if(i!=j && distances[i][j]< minDistance)
                     minDistance = distances[i][j];
-        initialGuess=minDistance/2;
+        initialGuess= minDistance/2;
     } //rInitialization
 
     /**
@@ -103,11 +97,12 @@ public class G045HW2 {
     private static long ball_weight(HashSet<Integer> Z, double r, int index_center, ArrayList<Long> W){
         long ball_weight=0; //the center contributes to the ball weight count
         for(int j=0;j<distances[0].length; j++){
-            if(Z.contains(j) && distances[index_center][j] <= r )
-                ball_weight+=W.get(j);
-        }
+            if(Z.contains(j) && distances[index_center][j] <= r ) {
+                ball_weight += W.get(j);
+            }//if
+        }//for
         return ball_weight;
-    }
+    }//ball_weight
 
     /**
      * ball calculation
@@ -121,9 +116,11 @@ public class G045HW2 {
         for(int j=0;j<distances[0].length; j++) {
             if (Z.contains(j) && distances[center_index][j] <= r)
                 ball.add(j);
-        }
+        }//for
         return ball;
-    }
+    }//ball
+
+    //******** Homework methods ********
 
     /**
      * SeqWeightedOutliers
@@ -136,73 +133,73 @@ public class G045HW2 {
      */
     public static ArrayList<Vector> SeqWeightedOutliers(ArrayList<Vector> P, ArrayList<Long> W, int k, int z, double alpha) {
         rInitialization(k, z);
+
         double r= initialGuess;
         nGuesses=1;
 
         while (true) {
             long Wz = 0;
-            for (long w : W)
+
+            for (long w : W) {
                 Wz += w;
+            }//for
+
             HashSet<Integer> Z = new HashSet<>(); //Z: set of indexes of uncovered points
-            for(int i=0;i<P.size();i++)
+
+            for(int i=0;i<P.size();i++) {
                 Z.add(i);
+            }//for
 
             HashSet<Vector> S = new HashSet<>();  //S: set of centers, for now it's empty
 
             while (S.size() < k && Wz > 0) {
                 long max = 0;
-
                 Vector new_center = null;
+
                 for (int i = 0; i < P.size(); i++) {
                     if (Z.contains(i)) {
                         long ball_weight = ball_weight(Z, (1 + 2 * alpha) * r, i, W);
-                        //System.out.println("Iterazione:" + i + " Ball_W: " + ball_weight);
                         if (ball_weight > max) {
                             max = ball_weight;
                             new_center = P.get(i);
-                        }
-                    }
-                }
-
-                //System.out.println("Centro da aggiungere: " + new_center);
+                        }//if
+                    }//if
+                }//for
 
                 S.add(new_center);
-
                 ArrayList<Integer> ball = ball(Z, (3 + 4 * alpha) * r, P.indexOf(new_center));
-                //System.out.println("Palla da rimuovere:");
-                /*for (Integer i : ball)
-                    System.out.println(i);*/
+
                 for (Integer y : ball) {
                     Z.remove(y);
-                    Wz -= W.get(y); //peso di y
-                }
-                //System.out.println("Uncovered points:");
-                /*for (Integer i : Z)
-                    System.out.println(i);*/
-            }
+                    Wz -= W.get(y); //y's weight
+                }//for
+            }//while
+
             if (Wz <= z) {
                 finalGuess = r;
                 return new ArrayList<>(S);
-            } else if(S.size()==k){
-                //System.out.println("nuova guess");
+            }else if(S.size()==k){
                 r *= 2;
                 nGuesses++;
-                //System.out.println(r);
-            }
-            //System.out.println("Wz:" + Wz);
-        }
-    }
+            }//if-else
+
+        }//while
+    }//SeqWeightedOutliers
 
     /** ComputeObjective(P,S,z)
      * @param P set of input points
      * @param S set of centers returned by SeqWeightedOutliers
      * @param z number of outliers
-     * @return the largest distance between points in P and centers in S, discarding the last $z
+     * @return the largest distance between points in P and centers in S, by not considering the last $z
      */
     public static double ComputeObjective(ArrayList<Vector> P, ArrayList<Vector> S, int z){
         double[] local_distances = new double[P.size()];
-        for(int i=0;i<local_distances.length;i++)
-            local_distances[i]=-1;
+
+        // Initializing the distances vector with all -1
+        for(int i=0; i<local_distances.length;i++) {
+            local_distances[i] = -1;
+        }//for
+
         double distance;
         int index = 0;
 
@@ -213,29 +210,31 @@ public class G045HW2 {
                     break;
                 } else {
                     distance = Math.sqrt(Vectors.sqdist(p_i, center_i));
-                    if(local_distances[index] == -1)
+                    if(local_distances[index] == -1) {
                         local_distances[index] = distance;
-                    else if(distance < local_distances[index])
+                    }else if(distance < local_distances[index]){
                         local_distances[index] = distance;
-                }//if
+                    }//if-else
+                }//if-else
             }//foreach
             index++;
         }//foreach
 
         // sort all distances computed before
         java.util.Arrays.sort(local_distances);
-        //System.out.println("local_distances" + java.util.Arrays.toString(local_distances));
 
-        //discard the z largest distances and return
+        // remove the $z largest distances and return the value
         return local_distances[(local_distances.length-1)-z];
     }//ComputeObjective
+
+    //******** Main ********
 
     public static void main(String[] args) throws IllegalArgumentException, IOException {
 
         //simple check of the command line arguments
         if (args.length != 3) {
             throw new IllegalArgumentException("USAGE: dataset_path k z");
-        }
+        }//if
 
         // Command line input reading
         String data_path = args[0];             // Read dataset path
@@ -247,26 +246,12 @@ public class G045HW2 {
 
         //Initializing weights with all ones
         ArrayList<Long> weights = new ArrayList<>(inputPoints.size());
-        for (int i=0; i<inputPoints.size(); i++)
+        for (int i=0; i<inputPoints.size(); i++) {
             weights.add(1L);
+        }//for
 
         //******* COMPUTE THE MATRIX OF DISTANCES *******
         calculateDistancesMatrix(inputPoints);
-
-        //Plot the distance matrix
-
-        /*for (int i=0; i<inputPoints.size(); i++){
-            for (int j=0; j<inputPoints.size(); j++) {
-                System.out.print(distances[i][j] + " ");
-            }
-            System.out.println();
-        } /*
-
-        //Plot the points
-
-        for (int i=0; i<inputPoints.size(); i++){
-            System.out.println("" + inputPoints.get(i));
-        }*/
 
         long startTime= System.currentTimeMillis();
         ArrayList<Vector> solution = SeqWeightedOutliers(inputPoints,weights,k,z,0);
@@ -275,7 +260,7 @@ public class G045HW2 {
         //calculate the execution time of SeqWeightedOutliers
         long exTime= endTime-startTime;
 
-        // OUTPUT OF THE SYSTEM
+        //******* OUTPUT OF THE SYSTEM *******
         System.out.println("Input size n = "+inputPoints.size());
         System.out.println("Number of centers k = "+k);
         System.out.println("Number of outliers z = "+z);
@@ -285,5 +270,6 @@ public class G045HW2 {
         System.out.println("Objective function = "+ ComputeObjective(inputPoints,solution, z));
         System.out.println("Time of SeqWeightedOutliers = "+exTime);
 
-    }
-}
+    }//main
+
+}//G045HW2
