@@ -15,7 +15,7 @@ COMPONENTS:
 
 public class G045HW2 {
 
-    private static double[][] distances; //matrix of the distances
+    private static double[][] distances; //matrix of distances
     private static double initialGuess;  //initial guess of r
     private static double finalGuess;    //final guess of r
     private static int nGuesses;         //number of guesses made by the algorithm
@@ -260,6 +260,9 @@ public class G045HW2 {
         //calculate the execution time of SeqWeightedOutliers
         long exTime= endTime-startTime;
 
+        //calculate the objective function value of the solution
+        double objective = ComputeObjective(inputPoints,solution, z);
+
         //******* OUTPUT OF THE SYSTEM *******
         System.out.println("Input size n = "+inputPoints.size());
         System.out.println("Number of centers k = "+k);
@@ -267,7 +270,7 @@ public class G045HW2 {
         System.out.println("Initial guess = "+initialGuess);
         System.out.println("Final guess = "+finalGuess);
         System.out.println("Number of guesses = "+nGuesses);
-        System.out.println("Objective function = "+ ComputeObjective(inputPoints,solution, z));
+        System.out.println("Objective function = "+ objective);
         System.out.println("Time of SeqWeightedOutliers = "+exTime);
 
     }//main
