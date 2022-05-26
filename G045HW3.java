@@ -8,13 +8,24 @@ import org.apache.spark.mllib.linalg.BLAS;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
 import scala.Tuple2;
+import scala.collection.Iterable;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
-public class GxxxHW3
-{
+/*
+GROUP: 045
+COMPONENTS:
+- Barusco Manuel
+- Gregori Andrea
+- Rampon Riccardo
+ */
+
+public class G045HW3 {
+
+    private static double[][] distances; //matrix of the distances
+    private static double initialGuess;  //initial guess of r
+    private static double finalGuess;    //final guess of r
+    private static int nGuesses;         //number of guesses made by the algorithm
 
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -51,16 +62,19 @@ public class GxxxHW3
         long N = inputPoints.count();
         end = System.currentTimeMillis();
 
-        // ----- Pring input parameters
-        System.out.println("File : " + filename);
-        System.out.println("Number of points N = " + N);
-        System.out.println("Number of centers k = " + k);
-        System.out.println("Number of outliers z = " + z);
-        System.out.println("Number of partitions L = " + L);
-        System.out.println("Time to read from file: " + (end-start) + " ms");
+
+
+        // ----- Print input parameters
+        //System.out.println("File : " + filename);
+        //System.out.println("Number of points N = " + N);
+        //System.out.println("Number of centers k = " + k);
+        //System.out.println("Number of outliers z = " + z);
+        //System.out.println("Number of partitions L = " + L);
+         //System.out.println("Time to read from file: " + (end-start) + " ms");
 
         // ---- Solve the problem
         ArrayList<Vector> solution = MR_kCenterOutliers(inputPoints, k, z, L);
+        System.out.println("Size solution: " + solution.size());
 
         // ---- Compute the value of the objective function
         start = System.currentTimeMillis();
@@ -102,8 +116,10 @@ public class GxxxHW3
 // Method MR_kCenterOutliers: MR algorithm for k-center with outliers
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
-    public static ArrayList<Vector> MR_kCenterOutliers (JavaRDD<Vector> points, int k, int z, int L)
-    {
+    public static ArrayList<Vector> MR_kCenterOutliers (JavaRDD<Vector> points, int k, int z, int L){
+
+        long startTime, endTime;
+        startTime = System.currentTimeMillis();
 
         //------------- ROUND 1 ---------------------------
 
@@ -111,8 +127,13 @@ public class GxxxHW3
         {
             ArrayList<Vector> partition = new ArrayList<>();
             while (x.hasNext()) partition.add(x.next());
+
             ArrayList<Vector> centers = kCenterFFT(partition, k+z+1);
+            //System.out.println("centers: " + centers.toString());
+
             ArrayList<Long> weights = computeWeights(partition, centers);
+            //System.out.println("weight: " + weights.toString());
+
             ArrayList<Tuple2<Vector,Long>> c_w = new ArrayList<>();
             for(int i =0; i < centers.size(); ++i)
             {
@@ -124,15 +145,38 @@ public class GxxxHW3
 
         //------------- ROUND 2 ---------------------------
 
-        ArrayList<Tuple2<Vector, Long>> elems = new ArrayList<>((k+z)*L);
+        ArrayList<Tuple2<Vector, Long>> elems = new ArrayList<>((k+z)*L); //gather the coreset
         elems.addAll(coreset.collect());
+        //System.out.println(elems.toString());
+        endTime = System.currentTimeMillis();
+
+        System.out.println("Time Round 1:" + (startTime - endTime));
+
         //
         // ****** ADD YOUR CODE
         // ****** Compute the final solution (run SeqWeightedOutliers with alpha=2)
         // ****** Measure and print times taken by Round 1 and Round 2, separately
         // ****** Return the final solution
         //
-    }
+
+        startTime = System.currentTimeMillis();
+
+        ArrayList<Vector> P = new ArrayList<>((k+z)*L);
+        ArrayList<Long> W = new ArrayList<>((k+z)*L);
+
+        // separate the Tuple2<Vector, Long> and add key-value pairs to P and W, respectively
+        for(Tuple2<Vector,Long> e : elems){
+            P.add(e._1());
+            W.add(e._2());
+        }//for
+
+        ArrayList<Vector> solution = SeqWeightedOutliers(P,W,k,z,2);
+
+        endTime = System.currentTimeMillis();
+        System.out.println("Time Round 2:" + (startTime - endTime));
+
+        return solution;
+    }//MR_kCenterOutliers
 
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 // Method kCenterFFT: Farthest-First Traversal
@@ -176,8 +220,7 @@ public class GxxxHW3
 // Method computeWeights: compute weights of coreset points
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
-    public static ArrayList<Long> computeWeights(ArrayList<Vector> points, ArrayList<Vector> centers)
-    {
+    public static ArrayList<Long> computeWeights(ArrayList<Vector> points, ArrayList<Vector> centers){
         Long weights[] = new Long[centers.size()];
         Arrays.fill(weights, 0L);
         for(int i = 0; i < points.size(); ++i)
@@ -203,23 +246,40 @@ public class GxxxHW3
 // Method SeqWeightedOutliers: sequential k-center with outliers
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
-    //
-    // ****** ADD THE CODE FOR SeqWeightedOuliers from HW2
-    //
-
 
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 // Method computeObjective: computes objective function
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
-    public static double computeObjective (JavaRDD<Vector> points, ArrayList<Vector> centers, int z)
-    {
+    /** ComputeObjective(P,S,z)
+     * @param points set of input points
+     * @param centers set of centers returned by SeqWeightedOutliers
+     * @param z number of outliers
+     * @return the largest distance between points in P and centers in S, by not considering the last $z
+     */
+    public static double computeObjective (JavaRDD<Vector> points, ArrayList<Vector> centers, int z) {
 
-        //
-        // ****** ADD THE CODE FOR computeObjective
-        //
+         double objValue = points.map(point -> {
+            //compute distances between each points and centers
+            ArrayList<Double> distances = new ArrayList<>();
+            for(Vector center : centers){
+                distances.add(euclidean(point, center));
+            }//for
+            //System.out.println(distances.toString());
+            return distances.iterator();
+        })
+        .sortBy(dist -> dist,false,0) //sorting distances
+        .map(dist -> { //remove $z outliers
+            for(int i = 0; i<z; i++){
+                dist.remove();
+            }
+            return dist;
+        }).collect().get(0);
 
 
-    }
+
+
+        return objValue;
+    }//computeObjective
 
 }
