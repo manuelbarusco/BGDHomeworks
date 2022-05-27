@@ -7,6 +7,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.linalg.BLAS;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
+import scala.Array;
 import scala.Tuple2;
 import scala.collection.Iterable;
 
@@ -76,12 +77,13 @@ public class G045HW3 {
         ArrayList<Vector> solution = MR_kCenterOutliers(inputPoints, k, z, L);
         System.out.println("Size solution: " + solution.size());
 
+
         // ---- Compute the value of the objective function
         start = System.currentTimeMillis();
         double objective = computeObjective(inputPoints, solution, z);
         end = System.currentTimeMillis();
         System.out.println("Objective function = " + objective);
-        System.out.println("Time to compute objective function: " + (end-start) + " ms");
+        /*System.out.println("Time to compute objective function: " + (end-start) + " ms");*/
 
     }
 
@@ -170,12 +172,12 @@ public class G045HW3 {
             W.add(e._2());
         }//for
 
-        ArrayList<Vector> solution = SeqWeightedOutliers(P,W,k,z,2);
+        //ArrayList<Vector> solution = SeqWeightedOutliers(P,W,k,z,2);
 
         endTime = System.currentTimeMillis();
         System.out.println("Time Round 2:" + (startTime - endTime));
 
-        return solution;
+        return new ArrayList<>();//solution;
     }//MR_kCenterOutliers
 
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -259,7 +261,12 @@ public class G045HW3 {
      */
     public static double computeObjective (JavaRDD<Vector> points, ArrayList<Vector> centers, int z) {
 
-         double objValue = points.map(point -> {
+        // collect RDD for printing
+        for(Vector line : points.collect()){
+            System.out.println("* "+line.toString());
+        }
+
+        double value = points.map(point -> {
             //compute distances between each points and centers
             ArrayList<Double> distances = new ArrayList<>();
             for(Vector center : centers){
@@ -268,18 +275,21 @@ public class G045HW3 {
             //System.out.println(distances.toString());
             return distances.iterator();
         })
-        .sortBy(dist -> dist,false,0) //sorting distances
-        .map(dist -> { //remove $z outliers
-            for(int i = 0; i<z; i++){
+        .sortBy(dist -> dist,false,0) //sorting descending : 8,7,6,5,4,3,2,1
+        .map(dist -> {
+            int i = 0;
+            while(dist.hasNext() && i<z){ //remove $z outliers
                 dist.remove();
-            }
+                i++;
+            }//while
             return dist;
-        }).collect().get(0);
+        })
+        .mapPartitions(iter -> iter.next())
+        .collect()
+        .get(0); //first element
 
 
-
-
-        return objValue;
+        return value;
     }//computeObjective
 
 }
