@@ -62,8 +62,6 @@ public class G045HW3 {
         long N = inputPoints.count();
         end = System.currentTimeMillis();
 
-
-
         // ----- Print input parameters
         System.out.println("File : " + filename);
         System.out.println("Number of points N = " + N);
@@ -118,8 +116,8 @@ public class G045HW3 {
 
     public static ArrayList<Vector> MR_kCenterOutliers (JavaRDD<Vector> points, int k, int z, int L){
 
-        long startTime, endTime;
-        startTime = System.currentTimeMillis();
+        long startTimeR1, startTimeR2, endTimeR1, endTimeR2;
+        startTimeR1 = System.currentTimeMillis();
 
         //------------- ROUND 1 ---------------------------
 
@@ -145,12 +143,10 @@ public class G045HW3 {
 
         //--------------------- ROUND 2 ---------------------------
 
-        ArrayList<Tuple2<Vector, Long>> elems = new ArrayList<>((k+z)*L); //gather the coreset
+        ArrayList<Tuple2<Vector, Long>> elems = new ArrayList<>((k+z)*L); //gather the coreset for avoiding lazy evaluation
         elems.addAll(coreset.collect());
         //System.out.println(elems.toString());
-        endTime = System.currentTimeMillis();
-
-        System.out.println("Time Round 1: " + (endTime - startTime) + " ms");
+        endTimeR1 = System.currentTimeMillis();
 
         //
         // ****** ADD YOUR CODE
@@ -159,7 +155,7 @@ public class G045HW3 {
         // ****** Return the final solution
         //
 
-        startTime = System.currentTimeMillis();
+        startTimeR2 = System.currentTimeMillis();
 
         ArrayList<Vector> P = new ArrayList<>((k+z)*L);     // arrayList of points
         ArrayList<Long> W = new ArrayList<>((k+z)*L);       // arrayList of weights
@@ -173,16 +169,16 @@ public class G045HW3 {
         // compute matrix of distances
         calculateDistancesMatrix(P);
 
-        ArrayList<Vector> solution = SeqWeightedOutliers(P,W,k,z,2);
+        ArrayList<Vector> centers = SeqWeightedOutliers(P,W,k,z,2);
 
-        endTime = System.currentTimeMillis();
-        System.out.println("Time Round 2: " + (endTime - startTime) + " ms");
-
+        endTimeR2 = System.currentTimeMillis();
         System.out.println("Initial guess = " + initialGuess);
         System.out.println("Final guess = " + finalGuess);
         System.out.println("Number of guesses = " + nGuesses);
+        System.out.println("Time Round 1: " + (endTimeR1 - startTimeR1) + " ms");
+        System.out.println("Time Round 2: " + (endTimeR2 - startTimeR2) + " ms");
 
-        return solution;
+        return centers;
     }//MR_kCenterOutliers
 
 // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -401,45 +397,28 @@ public class G045HW3 {
      */
     public static double computeObjective (JavaRDD<Vector> points, ArrayList<Vector> centers, int z) {
 
-        // collect RDD for printing
-        /*
-        for(Vector line : points.collect()){
-            System.out.println("* "+line.toString());
-        }*/
+        return points.mapPartitions(partition -> {
+            //compute distances between each point in the partion and obtained centers
 
-        /*
-        double value = points.map(point -> {
-            //compute distances between each points and centers
+            //distances of every point in the partition to the nearest center
             ArrayList<Double> distances = new ArrayList<>();
-            for(Vector center : centers){
-                distances.add(euclidean(point, center));
-            }//for
+
+            while(partition.hasNext()) {
+                Vector point= partition.next();
+                double minDistance = -1;
+                double distance = 0;
+                for (Vector center : centers) {
+                    distance = euclidean(point, center);
+                    if(minDistance == -1)
+                        minDistance = distance;
+                    else if(distance < minDistance)
+                        minDistance = distance;
+                }//for
+                distances.add(distance);
+            }
             //System.out.println(distances.toString());
             return distances.iterator();
-        })
-        .sortBy(dist -> dist,false,0) //sorting descending : 8,7,6,5,4,3,2,1
-        .map(dist -> {
-            int i = 0;
-            while(dist.hasNext() && i<z){ //remove $z outliers
-                dist.remove();
-                i++;
-            }//while
-            return dist;
-        })
-        .mapPartitions(iter -> iter.next())
-        .collect()
-        .get(0); //first element
-        return value;*/
-
-        List<Double> list = points.map((point)-> {
-                    ArrayList<Double> distances = new ArrayList<>();
-                    for (Vector center : centers)
-                        distances.add(euclidean(point, center));
-                    Collections.sort(distances);
-                    return distances.get(0);
-                }).sortBy(dist -> dist,true,0)
-                .take((int)points.count()-z-1);
-        return  list.get(list.size()-1);
+        }).top(z+1).get(z);
 
     }//computeObjective
 
