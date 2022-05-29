@@ -414,7 +414,7 @@ public class G045HW3 {
                     else if(distance < minDistance)
                         minDistance = distance;
                 }//for
-                distances.add(distance);
+                distances.add(minDistance);
             }
             //System.out.println(distances.toString());
             return distances.iterator();
